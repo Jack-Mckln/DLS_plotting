@@ -765,7 +765,7 @@ def plot_multi_file_one_pos_time_RH(source, scatter_type,
         ax.invert_yaxis() #making sure that the longest time is plotted at the top
         #plt.colorbar(c)
         
-       # t_vals = t_vals-t_vals[0]
+        t_vals = t_vals-t_vals[0]
         t_vals = t_vals[start_pos::n_pos] # take only the time correspoinding to a certain position
         
         
@@ -793,6 +793,7 @@ def plot_multi_file_one_pos_time_RH(source, scatter_type,
 def plot_multi_file_one_pos_time_RH_2(source, scatter_type, 
                                  start_pos, end_pos,
                                  n_pos,
+                                 mesh_cnt = 21,
                                  start_file_no = 0, N_files = 'all',
                                  range_min = None, range_max = None,
                                  t_offset = 0):
@@ -943,12 +944,21 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
             
             for file in ESRF_SAXS_file_list:
                 timing_path = DLS_drop_dir / (file.split('_')[0]+'.nxs')
-                data, q_values, t, start_time, n_pos = read_nxs(ESRF_drop_dir / file, source, timing_path)
+                data, q_values, t, start_time, n_pos_i = read_nxs(ESRF_drop_dir / file, source, timing_path)
                 q_values = q_values/10
+
+                
+
                 t_vals = np.append(t_vals, t+start_time)
+                n_pos.append(n_pos_i)#creating a list of the values of n_pos
                 
-                
-                filter_data.append(np.sum(data[start_pos:end_pos+1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+
+                #cutting the data up into the horizontal rows that it is acutally made up of
+                data_sliced = [data[i:i+mesh_cnt] for i in range(0, len(data), mesh_cnt)]
+                for slice in data_sliced:
+                    filter_data.append(np.sum(slice[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+
+                #filter_data.append(np.sum(data[start_pos:end_pos+1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
            
         
         except TypeError:
@@ -959,9 +969,17 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
         
         for file in range(len(filter_data)):
             
-            ax.plot(q_values, filter_data[file]*10**file) 
+            #ax.plot(q_values, filter_data[file]*10**file) 
             ax.set_yscale('log')
-            
+
+        t_vals = t_vals-t_vals[0]
+        t_vals = t_vals[start_pos::mesh_cnt]   
+
+        first_file_no = (re.search("\d{5}", ESRF_SAXS_file_list[0]).group()) #keeping just the number of the file
+        last_file_no  = (re.search("\d{5}", ESRF_SAXS_file_list[-1]).group())
+        fig_save_name = ESRF_drop_dir / f'{first_file_no}-{last_file_no}_SAXS_pos{start_pos}-{end_pos}.png'  
+        print(f"plotting files between \n{ESRF_SAXS_file_list[0]}\nand\n{ESRF_SAXS_file_list[-1]}\n\n")
+
         pass
     
     elif source == 'ESRF' and scatter_type == 'WAXS':
@@ -976,14 +994,18 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
             
             for file in ESRF_WAXS_file_list:
                 timing_path = DLS_drop_dir / (file.split('_')[0]+'.nxs')
-                data, q_values, t, start_time, n_pos = read_nxs(ESRF_drop_dir / file, source, timing_path)
+                data, q_values, t, start_time, n_pos_i = read_nxs(ESRF_drop_dir / file, source, timing_path)
                 q_values = q_values/10
                 t_vals = np.append(t_vals, t+start_time)
-    
-    
+                n_pos.append(n_pos_i)#creating a list of the values of n_pos
+
+
+                #cutting the data up into the horizontal rows that it is acutally made up of
+                data_sliced = [data[i:i+mesh_cnt] for i in range(0, len(data), mesh_cnt)]
+                for slice in data_sliced:
+                    filter_data.append(np.sum(slice[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+
                 
-                filter_data.append(np.sum(data[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
-            
             
         except TypeError:
             print(f"Incompatible file {file}, data missing")
@@ -991,9 +1013,19 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
         fig,ax = plt.subplots()
         for file in range(len(filter_data)):
             
-            ax.plot(q_values, filter_data[file]*10**file) 
+            #ax.plot(q_values, filter_data[file]*10**file) 
             ax.set_yscale('log')
             #need to change axes
+            
+        t_vals = t_vals-t_vals[0]
+        t_vals = t_vals[start_pos::mesh_cnt]   
+
+        
+        first_file_no = (re.search("\d{5}", ESRF_WAXS_file_list[0]).group()) #keeping just the number of the file
+        last_file_no  = (re.search("\d{5}", ESRF_WAXS_file_list[-1]).group())
+        fig_save_name = ESRF_drop_dir / f'{first_file_no}-{last_file_no}_WAXS_pos{start_pos}-{end_pos}.png'  
+        print(f"plotting files between \n{ESRF_WAXS_file_list[0]}\nand\n{ESRF_WAXS_file_list[-1]}\n\n")
+
                 
     
     
@@ -1100,8 +1132,8 @@ ESRF_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic 
 DLS_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Diamond beamtime February 2024\Diamond X-ray data\processed'
 
 
-ESRF_drop_dir = ESRF_mother_directory / 'Drop14_DPPC_5perc_2-pentanol'
-DLS_drop_dir = DLS_mother_directory / 'Drop28_2-1_DPPC-POPC_7-5mgml_NOVES_Ham'
+ESRF_drop_dir = ESRF_mother_directory / 'Drop2_DPPC_5perc_2-pentanol'
+DLS_drop_dir = DLS_mother_directory / 'Drop2_5pc_POPC_2pent_DoD'
 #background_name="i22-636979_saxs_Transmission_IvsQ_processed.nxs"
 
 
@@ -1130,28 +1162,30 @@ ESRF_WAXS_file_list=glob_re(r'.*waxs_\d+.*ave\.h5', os.listdir(ESRF_drop_dir))
 DLS_SAXS_file_list = glob_re(r'.*saxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 DLS_WAXS_file_list = glob_re(r'.*waxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 
-RH_file = Path(r'C:\Users\jackm\OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Diamond beamtime February 2024\Diamond RH data\Drop28_DPPC_POPC_7-5mgml_H2Ol__sonic_MLV_Ham_60RH26_02_2024-01-33.txt')
-
+RH_file = Path(r'C:\Users\jackm\OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Data ESRF February 2024\RH data to go with ESRF data 02 02 24 to  06 02 24\ESRF RH data from Levitator user')
+RH_file = RH_file / r'Pentanol_5perc_DPPC_day2_fine_mesh_targ_80perc03_02_2024-09-58.txt'
 ### FUNCTION CALLS ###
 
 
-t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('ESRF', 'SAXS', 
-                                                             start_pos = 0, end_pos = 12, 
-                                                             n_pos = 13, 
-                                                             start_file_no = 0, N_files = 'all',
-                                                             range_min = None,
-                                                             range_max = 4,
-                                                             t_offset = 200
+t_vals, filter_data1, q_values1 = plot_multi_file_one_pos_time_RH_2('ESRF', 'SAXS', 
+                                                             start_pos = 15, end_pos = 25, 
+                                                             n_pos = 13,
+                                                             mesh_cnt = 41, 
+                                                             start_file_no = 249, N_files = 10,
+                                                             range_min = -2,
+                                                             range_max = 2,
+                                                             t_offset = 960
                                                              )
 
 
-t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('DLS', 'WAXS', 
-                                                             start_pos = 0, end_pos = 12, 
+t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('ESRF', 'WAXS', 
+                                                             start_pos = 0, end_pos = 5000, 
                                                              n_pos = 13, 
-                                                             start_file_no = 0, N_files = 'all',
+                                                             mesh_cnt = 41,
+                                                             start_file_no = 249, N_files = 10,
                                                              range_min = None,
                                                              range_max = None,
-                                                             t_offset = 200
+                                                             t_offset = 960
                                                              )
 
 #timing = DLS_drop_dir / DLS_SAXS_file_list[0]
@@ -1162,3 +1196,4 @@ t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('DLS', 'WAXS',
 #data, q_values, t, start_time= read_nxs(DLS_drop_dir / DLS_SAXS_file_list[0], 'DLS', timing)
 
 RH_t, RH = read_RH(RH_file, delimiter = ',')
+
