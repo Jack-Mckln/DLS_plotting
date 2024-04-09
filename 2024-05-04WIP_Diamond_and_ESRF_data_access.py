@@ -794,14 +794,15 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                                  start_pos, end_pos,
                                  n_pos,
                                  mesh_cnt = 21,
+                                 mesh_cnt_tuple = (10,21), #How many files you want, number of starting file
                                  start_file_no = 0, N_files = 'all',
                                  range_min = None, range_max = None,
                                  t_offset = 0):
     
     t_vals = np.array([[]]) #array to be populated with the time values corresponding to each scan
     filter_data=[]
+    filter_data_sliced =[]
     n_pos = []
-    
     
     
     
@@ -956,12 +957,32 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 #cutting the data up into the horizontal rows that it is acutally made up of
                 data_sliced = [data[i:i+mesh_cnt] for i in range(0, len(data), mesh_cnt)]
                 for slice in data_sliced:
-                    filter_data.append(np.sum(slice[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+                    filter_data_sliced.append(np.sum(slice[start_pos:end_pos:1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+            
+            filter_data_sliced = np.array(filter_data_sliced)
+            print(filter_data_sliced)
+            print("flter data len     ", len(filter_data_sliced)) 
+            
+            for step in range(0, len(filter_data_sliced), int(len(filter_data_sliced)/N_files)): #len(filter_data_sliced)/N_files gives the number of patterns per slice (not always square - if the X-ray data is M horizontal steps, by N vertical, this is N)
+                #This for loop steps through the filter_data_sliced in increments of the number of patterns per slice (vertical number of steps)
 
-                #filter_data.append(np.sum(data[start_pos:end_pos+1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
-           
-        
-        except TypeError:
+                
+                filter_data.append(filter_data_sliced[step+mesh_cnt_tuple[1]:step+mesh_cnt_tuple[1]+mesh_cnt_tuple[0]])
+                #this appends the filter_data sliced values correponds to [step+start:step+start+n]
+                #where start is the positions you want to start keeping from and n the number of positions to keep
+
+            print("(filter_data at end   ", len(filter_data))
+            filter_data = [item if isinstance(item, list) else [item] for sublist in filter_data for item in sublist]
+                #This list comprehension iterates over each sublist in the original list l. For each sublist, it checks if the item is a list or not. If it's not a list, it converts it into a single-item list. Then, it flattens the nested list structure into a single list
+                
+
+            filter_data = [[item for sublist in sublist_list for item in sublist] for sublist_list in filter_data]
+            #this list comprehension is reshaping the list (because it has a random extra dimensions, not currently sure why it's been a long day)
+            
+            print(filter_data[0])
+
+
+        except IndexError:
            print(f"Incompatible file {file}, data missing")
            
            
@@ -1005,7 +1026,7 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 for slice in data_sliced:
                     filter_data.append(np.sum(slice[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
 
-                
+              
             
         except TypeError:
             print(f"Incompatible file {file}, data missing")
@@ -1168,12 +1189,13 @@ RH_file = RH_file / r'Pentanol_5perc_DPPC_day2_fine_mesh_targ_80perc03_02_2024-0
 
 
 t_vals, filter_data1, q_values1 = plot_multi_file_one_pos_time_RH_2('ESRF', 'SAXS', 
-                                                             start_pos = 15, end_pos = 25, 
+                                                             start_pos = 0, end_pos = 41, 
                                                              n_pos = 13,
                                                              mesh_cnt = 41, 
-                                                             start_file_no = 249, N_files = 10,
-                                                             range_min = -2,
-                                                             range_max = 2,
+                                                             mesh_cnt_tuple = (25,0),
+                                                             start_file_no = 249, N_files = 5,
+                                                             range_min = -3,
+                                                             range_max = .2,
                                                              t_offset = 960
                                                              )
 
@@ -1182,7 +1204,8 @@ t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('ESRF', 'WAXS'
                                                              start_pos = 0, end_pos = 5000, 
                                                              n_pos = 13, 
                                                              mesh_cnt = 41,
-                                                             start_file_no = 249, N_files = 10,
+                                                             mesh_cnt_tuple = (14,3),
+                                                             start_file_no = 249, N_files = 5,
                                                              range_min = None,
                                                              range_max = None,
                                                              t_offset = 960
