@@ -866,9 +866,7 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
         first_file_no = DLS_SAXS_file_list[0][4:10] #keeping just the number of the file
         last_file_no  = DLS_SAXS_file_list[-1][4:10]
         fig_save_name = DLS_drop_dir / f'{first_file_no}-{last_file_no}_SAXS_pos{start_pos}-{end_pos}.png'                                  
-                      
-                                            
-                      
+     
         
     
     elif source == 'DLS' and scatter_type == 'WAXS':
@@ -960,8 +958,7 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                     filter_data_sliced.append(np.sum(slice[start_pos:end_pos:1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
             
             filter_data_sliced = np.array(filter_data_sliced)
-            print(filter_data_sliced)
-            print("flter data len     ", len(filter_data_sliced)) 
+
             
             for step in range(0, len(filter_data_sliced), int(len(filter_data_sliced)/N_files)): #len(filter_data_sliced)/N_files gives the number of patterns per slice (not always square - if the X-ray data is M horizontal steps, by N vertical, this is N)
                 #This for loop steps through the filter_data_sliced in increments of the number of patterns per slice (vertical number of steps)
@@ -971,7 +968,7 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 #this appends the filter_data sliced values correponds to [step+start:step+start+n]
                 #where start is the positions you want to start keeping from and n the number of positions to keep
 
-            print("(filter_data at end   ", len(filter_data))
+            #print("(filter_data at end   ", len(filter_data))
             filter_data = [item if isinstance(item, list) else [item] for sublist in filter_data for item in sublist]
                 #This list comprehension iterates over each sublist in the original list l. For each sublist, it checks if the item is a list or not. If it's not a list, it converts it into a single-item list. Then, it flattens the nested list structure into a single list
                 
@@ -979,8 +976,6 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
             filter_data = [[item for sublist in sublist_list for item in sublist] for sublist_list in filter_data]
             #this list comprehension is reshaping the list (because it has a random extra dimensions, not currently sure why it's been a long day)
             
-            print(filter_data[0])
-
 
         except IndexError:
            print(f"Incompatible file {file}, data missing")
@@ -988,10 +983,13 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
            
         fig,ax = plt.subplots()
         
-        for file in range(len(filter_data)):
-            
-            #ax.plot(q_values, filter_data[file]*10**file) 
-            ax.set_yscale('log')
+        try:
+            for file in range(len(filter_data)):
+                ax.plot(q_values, np.array(filter_data)[file]*10**file) #has to be made into an array for facile multiplication
+                ax.set_yscale('log')
+        except OverflowError:
+            print("Too many files to plot, overflowing")
+
 
         t_vals = t_vals-t_vals[0]
         t_vals = t_vals[start_pos::mesh_cnt]   
@@ -1024,19 +1022,39 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 #cutting the data up into the horizontal rows that it is acutally made up of
                 data_sliced = [data[i:i+mesh_cnt] for i in range(0, len(data), mesh_cnt)]
                 for slice in data_sliced:
-                    filter_data.append(np.sum(slice[start_pos:end_pos], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+                    filter_data_sliced.append(np.sum(slice[start_pos:end_pos:1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
+            
+            filter_data_sliced = np.array(filter_data_sliced)
 
-              
+            
+            for step in range(0, len(filter_data_sliced), int(len(filter_data_sliced)/N_files)): #len(filter_data_sliced)/N_files gives the number of patterns per slice (not always square - if the X-ray data is M horizontal steps, by N vertical, this is N)
+                #This for loop steps through the filter_data_sliced in increments of the number of patterns per slice (vertical number of steps)
+
+                
+                filter_data.append(filter_data_sliced[step+mesh_cnt_tuple[1]:step+mesh_cnt_tuple[1]+mesh_cnt_tuple[0]])
+                #this appends the filter_data sliced values correponds to [step+start:step+start+n]
+                #where start is the positions you want to start keeping from and n the number of positions to keep
+
+            #print("(filter_data at end   ", len(filter_data))
+            filter_data = [item if isinstance(item, list) else [item] for sublist in filter_data for item in sublist]
+                #This list comprehension iterates over each sublist in the original list l. For each sublist, it checks if the item is a list or not. If it's not a list, it converts it into a single-item list. Then, it flattens the nested list structure into a single list
+                
+
+            filter_data = [[item for sublist in sublist_list for item in sublist] for sublist_list in filter_data]
+            #this list comprehension is reshaping the list (because it has a random extra dimensions, not currently sure why it's been a long day)
+            
             
         except TypeError:
             print(f"Incompatible file {file}, data missing")
             
         fig,ax = plt.subplots()
-        for file in range(len(filter_data)):
-            
-            #ax.plot(q_values, filter_data[file]*10**file) 
-            ax.set_yscale('log')
-            #need to change axes
+        try:
+            for file in range(len(filter_data)):   
+                ax.plot(q_values, np.array(filter_data)[file]*10**file) 
+                ax.set_yscale('log')
+                #need to change axes
+        except OverflowError:
+            print("Too many files to plot, overflowing")
             
         t_vals = t_vals-t_vals[0]
         t_vals = t_vals[start_pos::mesh_cnt]   
@@ -1057,7 +1075,7 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
     
     
     
-    fig, (ax_RH, ax_heat) = plt.subplots(1 , 2, sharey=False , width_ratios= [.2,1]) #share y must be false because of differnt array sizes
+    fig, (ax_RH, ax_heat) = plt.subplots(1 , 2, sharey=False , gridspec_kw=dict(width_ratios= [.2,1])) #share y must be false because of differnt array sizes
     fig.subplots_adjust(wspace = 0.05)
     sns.heatmap(np.log10(filter_data), 
                           vmin = range_min, vmax = range_max, 
@@ -1153,7 +1171,7 @@ ESRF_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic 
 DLS_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Diamond beamtime February 2024\Diamond X-ray data\processed'
 
 
-ESRF_drop_dir = ESRF_mother_directory / 'Drop2_DPPC_5perc_2-pentanol'
+ESRF_drop_dir = ESRF_mother_directory / r'Drop17_POPC_5perc_H2O'
 DLS_drop_dir = DLS_mother_directory / 'Drop2_5pc_POPC_2pent_DoD'
 #background_name="i22-636979_saxs_Transmission_IvsQ_processed.nxs"
 
@@ -1183,32 +1201,32 @@ ESRF_WAXS_file_list=glob_re(r'.*waxs_\d+.*ave\.h5', os.listdir(ESRF_drop_dir))
 DLS_SAXS_file_list = glob_re(r'.*saxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 DLS_WAXS_file_list = glob_re(r'.*waxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 
-RH_file = Path(r'C:\Users\jackm\OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Data ESRF February 2024\RH data to go with ESRF data 02 02 24 to  06 02 24\ESRF RH data from Levitator user')
-RH_file = RH_file / r'Pentanol_5perc_DPPC_day2_fine_mesh_targ_80perc03_02_2024-09-58.txt'
+RH_file = user_path / r'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Data ESRF February 2024\RH data to go with ESRF data 02 02 24 to  06 02 24\ESRF RH data from Levitator user'
+RH_file = RH_file / r'Drop5_POPC_5perc_60targ04_02_2024-13-36.txt'
 ### FUNCTION CALLS ###
 
 
 t_vals, filter_data1, q_values1 = plot_multi_file_one_pos_time_RH_2('ESRF', 'SAXS', 
-                                                             start_pos = 0, end_pos = 41, 
+                                                             start_pos = 0, end_pos = 5000, 
                                                              n_pos = 13,
-                                                             mesh_cnt = 41, 
-                                                             mesh_cnt_tuple = (25,0),
-                                                             start_file_no = 249, N_files = 5,
-                                                             range_min = -3,
-                                                             range_max = .2,
-                                                             t_offset = 960
+                                                             mesh_cnt = 486, 
+                                                             mesh_cnt_tuple = (6,0),
+                                                             start_file_no = 0, N_files = 21,
+                                                             range_min = -1.5,
+                                                             range_max = 1,
+                                                             t_offset = 1020
                                                              )
 
 
 t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('ESRF', 'WAXS', 
                                                              start_pos = 0, end_pos = 5000, 
                                                              n_pos = 13, 
-                                                             mesh_cnt = 41,
-                                                             mesh_cnt_tuple = (14,3),
-                                                             start_file_no = 249, N_files = 5,
+                                                             mesh_cnt = 486,
+                                                             mesh_cnt_tuple = (6,0),
+                                                             start_file_no = 0, N_files = 21,
                                                              range_min = None,
                                                              range_max = None,
-                                                             t_offset = 960
+                                                             t_offset = 1020
                                                              )
 
 #timing = DLS_drop_dir / DLS_SAXS_file_list[0]
