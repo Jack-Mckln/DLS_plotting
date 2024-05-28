@@ -14,7 +14,7 @@ import re
 import ciso8601 #for parsing time strings quickly
 import datetime # for unix epoch conversion
 import socket #
-
+import scipy.signal as sc
 
 ### Determining which computer I am on to set the correct paths (not having to edit paths each time I change computer) ###
 
@@ -797,7 +797,8 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                                  h_start = 0, h_end = 500,
                                  start_file_no = 0, N_files = 'all',
                                  range_min = None, range_max = None,
-                                 t_offset = 0):
+                                 t_offset = 0,
+                                 c_bar_bool = True):
     
     t_vals = np.array([[]]) #array to be populated with the time values corresponding to each scan
     filter_data=[]
@@ -968,21 +969,15 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 for ls in data_sliced:
                     filter_data.append(ls) #we append each sum for each vertical slice to a list
 
-            #    for slice in data_sliced:
-            #        filter_data_sliced.append(np.sum(slice[start_pos:end_pos:1], axis = 0))   # list of arratys each containing the data at the position requested summed over all frames  
-            #
-            ##filter_data_sliced = np.array(filter_data_sliced)
-            #
-            #for step in range(0, len(filter_data_sliced), int(len(filter_data_sliced)/N_files)): #len(filter_data_sliced)/N_files gives the number of patterns per slice (not always square - if the X-ray data is M horizontal steps, by N vertical, this is N)
-            #    #This for loop steps through the filter_data_sliced in increments of the number of patterns per slice (vertical number of steps)
-            #
-            #
-            #    
-            #    filter_data.append(filter_data_sliced[step+mesh_cnt_tuple[1]:step+mesh_cnt_tuple[1]+mesh_cnt_tuple[0]])
-            #    #this appends the filter_data sliced values correponds to [step+start:step+start+n]
-            #    #where start is the positions you want to start keeping from and n the number of positions to keep
-            #filter_data = sum(filter_data,[]) # flattening list
         
+            for step in range(len(t_vals)):
+                if step > 0:
+                    if t_vals[step]>= t_vals[step-1] + 86000: # give some extra minutes as a buffer
+                        t_vals[step]-=86400
+
+                    elif t_vals[step] <= t_vals[step-1]-86000:
+                        t_vals[step] += 86400
+       
         except IndexError:
            print(f"Incompatible file {file}, data missing")
            
@@ -1034,7 +1029,14 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
                 
                 for ls in data_sliced:
                     filter_data.append(ls) #we append each sum for each vertical slice to a list
+                
+                for step in range(len(t_vals)):
+                    if step > 0:
+                        if t_vals[step]>= t_vals[step-1] + 86000: # give some extra minutes as a buffer
+                            t_vals[step]-=86400
 
+                        elif t_vals[step] <= t_vals[step-1]-86000:
+                            t_vals[step] += 86400
           
             
         except TypeError:
@@ -1073,14 +1075,13 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
     sns.heatmap(np.log10(filter_data), 
                           vmin = range_min, vmax = range_max, 
                           ax=ax_heat,
-                          cbar = True
+                          cbar = c_bar_bool
                           )
     ax_heat.set_xlabel('q (1/nm)')
     ax_heat.invert_yaxis()
     #ax_heat.set(yticks = np.arange(0, len(t_vals), len(t_vals)/5), yticklabels = ['{0:.0f}'.format(t_vals[int(x)]) for x in list(np.arange(0, len(t_vals), len(t_vals)/5))])
     ax_heat.set_xticklabels(ax_heat.get_xticks(), rotation = 90)# rotation needs to set before adjusting the label values
     ax_heat.set(xticks = np.arange(0, len(q_values), (len(q_values)/5)), xticklabels = ['{0:.1f}'.format(q_values[int(x)]) for x in list(np.arange(0, len(q_values), (len(q_values)/5)))])
-    #ax_heat.set_yticks([])
     #ax_heat.set_xlim(250,416)
     
     RH_t, RH = read_RH(RH_file, delimiter = ',')
@@ -1090,17 +1091,17 @@ def plot_multi_file_one_pos_time_RH_2(source, scatter_type,
 
     ax_RH.plot(RH, RH_t)
     ax_RH.set_xlabel('RH (%)')
-    ax_RH.set_ylim(bottom = 0, top = max(t_vals))#setting the limits so that the axes align
+    ax_RH.set_ylim(bottom = 0, top = t_vals[-1])#setting the limits so that the axes align
     ax_RH.set_ylabel('Time (s) ')
     ax_RH.set_xlim(xmin = 40)
     ax_RH.set_xticklabels(ax_RH.get_xticks(), rotation = 90)
     
-    
-    #ax_heat.set(yticks = np.arange(0, len(t_vals), len(t_vals)/5), yticklabels = ['{0:.0f}'.format(t_vals[int(x)]) for x in list(np.arange(0, len(t_vals), len(t_vals)/5))])
-    ax_RH.set_yticks([int('{0:.0f}'.format(t_vals[int(x)])) for x in list(np.arange(0, len(t_vals), len(t_vals)/5))])
 
+    #ax_RH.set_yticks([int('{0:.0f}'.format(t_vals[int(x)])) for x in list(np.arange(0, len(t_vals), len(t_vals)/5))])
+    #ax_heat.set(yticks = np.arange(0, len(t_vals), len(t_vals)/5), yticklabels = ['{0:.0f}'.format(t_vals[int(x)]) for x in list(np.arange(0, len(t_vals), len(t_vals)/5))])
+    ax_heat.set_yticks([])
     
-    fig.savefig(fig_save_name, bbox_inches='tight')
+    #fig.savefig(fig_save_name, dpi = 600, format = 'png', transparent = False, bbox_inches='tight')
     
      
     
@@ -1135,14 +1136,16 @@ def plot_one_file_one_pos(filename, source, position):
     ax_one_all.set_xlabel('q (1/nm)')
     ax_one_all.set_ylabel('Intensity (arb. units)')
     ax_one_all.set_yticklabels([])
-    ax_one_all.set_prop_cycle(plt.cycler('color', 
-                                       plt.cm.jet(np.linspace(0, 1, len(data))))) #setting the colour map to cycle through                                                
+    #ax_one_all.set_prop_cycle(plt.cycler('color', 
+    #                                   plt.cm.jet(np.linspace(0, 1, len(data))))) #setting the colour map to cycle through                                                
        
                                                                                   #can use different colour maps, here jet goes
     plt.plot(q_values,data[position],
                 #s=0.1
                 )
     
+    #fig_one_all.savefig(r'C:\Users\jackm\OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Data ESRF February 2024\X-Ray data\Drop16_POPC_vesicles_H2O_0-75perc_Hamilton\file50 pos192.png', dpi = 600, format = 'png', transparent = False, bbox_inches='tight')
+    return data, q_values
     
     pass
 
@@ -1161,6 +1164,27 @@ def read_RH(RH_file, delimiter = ','):
     
     return time_vals, RH_vals
 
+def collapse_heat_map(filter_data, start):
+    filter_data = np.array(filter_data) # making filter_data into numpy array for ease of use
+    filter_data[filter_data < 0] = 0 #removing all negative values from the data (setting them to 0)
+    drop = np.sum(filter_data[start:], axis = 0) # summing across all the desired plots
+    drop = drop/max(drop) # normalise files
+    return drop
+
+
+def stacked_scatter_drops(drops, q_values_list, legend):
+    #### PLotting different drops together although the drops themselves need to be pretreated
+
+    fig, ax = plt.subplots()    
+    for x in range(len(drops)):
+        ax.set_ylabel('Intensity (arb. units)')
+        ax.set_yticklabels([])
+        ax.set_xlabel('q (1/nm)')
+        ax.plot(q_values_list[x], np.log10(drops[x]*50**x), label = legend[x])
+        ax.legend(loc = "upper right")
+
+
+
 
 ### Setting up the file paths ###
 
@@ -1168,18 +1192,17 @@ ESRF_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic 
 DLS_mother_directory = user_path / 'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Diamond beamtime February 2024\Diamond X-ray data\processed'
 
 
-ESRF_drop_dir = ESRF_mother_directory / r'Drop4_Dry_DPPC'
-DLS_drop_dir = DLS_mother_directory / 'Drop28_2-1_DPPC-POPC_7-5mgml_NOVES_Ham'
+ESRF_drop_dir = ESRF_mother_directory / r'Drop11_DPPC_1perc_H2O'
+DLS_drop_dir = DLS_mother_directory / 'Drop5_2-1_DPPC-POPC_7-5mgml_NaCl7-5mgml_ves_2'
 #background_name="i132-636979_saxs_Transmission_IvsQ_processed.nxs"
 
 
-ESRF_scan_no = '00008' 
-ESRF_SAXS_path = ESRF_drop_dir / f'drop4_dryDPPC_eiger2_00029_00_ave.h5'
-ESRF_WAXS_path = ESRF_drop_dir / f'drop4_dryDPPC_waxs_00029_00_ave.h5'
+ESRF_SAXS_path = ESRF_drop_dir / f'drop16_POPC_veiscles_H2O_eiger2_00050_00_ave.h5'
+ESRF_WAXS_path = ESRF_drop_dir / f'drop16_POPC_veiscles_H2O_waxs_00050_00_ave.h5'
 
 
 
-DLS_scan_no = '733784'
+DLS_scan_no = '736800'
 DLS_SAXS_path = DLS_drop_dir / f"i22-{DLS_scan_no}_saxs_Transmission_IvsQ_processed.nxs"
 DLS_WAXS_path = DLS_drop_dir / f"i22-{DLS_scan_no}_waxs_Transmission_IvsQ_processed.nxs"
 
@@ -1198,40 +1221,148 @@ ESRF_WAXS_file_list=glob_re(r'.*waxs_\d+.*ave\.h5', os.listdir(ESRF_drop_dir))
 DLS_SAXS_file_list = glob_re(r'.*saxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 DLS_WAXS_file_list = glob_re(r'.*waxs_Transmission_IvsQ_processed.nxs', os.listdir(DLS_drop_dir))
 
-RH_file = user_path / r'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Data ESRF February 2024\RH data to go with ESRF data 02 02 24 to  06 02 24\ESRF RH data from Levitator user'
-RH_file = RH_file / r'DPPC_from_powder_Changing_RH03_02_2024-20-45.txt'
+RH_file = user_path / r'OneDrive - University of Bath\PhD\Acoustic levtitation beamtimes\Diamond beamtime February 2024\Diamond RH data'
+RH_file = RH_file / r'Drop5_DPPC_POPC_vesicles_NaCl7-5mg-ml23_02_2024-01-57.txt'
 ### FUNCTION CALLS ###
 
 
-t_vals, filter_data1, q_values1 = plot_multi_file_one_pos_time_RH_2('ESRF', 'SAXS', 
-                                                             start_pos = 0, end_pos = 41, 
-                                                             n_pos = 861,
-                                                             mesh_cnt = 41, 
-                                                             h_start = 0, h_end = 21,
-                                                             start_file_no = 16, N_files = 50,
-                                                             range_min = -2,
-                                                             range_max = 2,
-                                                             t_offset = 4079)
+t_vals, filter_data, q_valuesDLS = plot_multi_file_one_pos_time_RH_2('DLS', 'SAXS', 
+                                                             start_pos = 6, end_pos = 14, 
+                                                             n_pos = 486,
+                                                             mesh_cnt = 486, 
+                                                             h_start = 0, h_end = 486,
+                                                             start_file_no = 0, N_files = 280,
+                                                             range_min = None,
+                                                             range_max = None,
+                                                             t_offset = -420,
+                                                             c_bar_bool = 1)
                                                             
 
 
-t_vals, filter_data, q_values = plot_multi_file_one_pos_time_RH_2('ESRF', 'WAXS', 
-                                                             start_pos = 0, end_pos = 41, 
-                                                             n_pos = 861, 
-                                                             mesh_cnt = 41,
-                                                             h_start = 0, h_end = 21,
-                                                             start_file_no = 15, N_files = 50,
-                                                             range_min = None,
-                                                             range_max = None,
-                                                             t_offset = 4079)                                                           
+#t_vals, filter_data1, q_valuesW = plot_multi_file_one_pos_time_RH_2('ESRF', 'WAXS', 
+#                                                             start_pos = 0, end_pos = 486, 
+#                                                             n_pos = 486,
+#                                                             mesh_cnt = 486, 
+#                                                             h_start = 0, h_end = 486,
+#                                                             start_file_no = 3, N_files = 20,
+#                                                             range_min = None,
+#                                                             range_max = None,
+#                                                             t_offset = 0,
+#                                                             c_bar_bool = 1)
+
+#plot_one_file_all_pos(ESRF_SAXS_path, 'ESRF', step = 20)
 
 
-#plot_one_file_all_pos(DLS_SAXS_path, 'DLS', step = 1)
+#for file in DLS_WAXS_file_list[900:1100:10]:
+#
+#    data,  q = plot_one_file_one_pos(DLS_drop_dir / file, 'DLS', 8)
 
-#plot_one_file_one_pos(ESRF_SAXS_path, 'ESRF', 427)
-#plot_one_file_one_pos(ESRF_WAXS_path, 'ESRF', 427)
+#for file in DLS_SAXS_file_list[100:110]:
+#    data,  q = plot_one_file_one_pos(DLS_drop_dir / file, 'DLS', 13)
 
-#data, q_values, t, start_time= read_nxs(DLS_drop_dir / DLS_SAXS_file_list[0], 'DLS', timing)
+#data, q_values_ESRF, t, start_time,_= read_nxs(ESRF_drop_dir / ESRF_SAXS_file_list[10], 'ESRF', timing)
 
 RH_t, RH = read_RH(RH_file, delimiter = ',')
 
+#legend = ['Drop 16', 'Drop 11', 'Drop 27', 'Drop 28 REDO AS THESE MAY BE IN WRONG ORDER!!!!' ]
+dropS = collapse_heat_map(filter_data = filter_data, start = 0)
+#dropW = collapse_heat_map(filter_data = filter_data1, start = 0)
+#stacked_scatter_drops(drops, [q_values], str(legend[-1]))
+
+
+
+#drops=[]
+#drops.append(drop28)
+#drops.append(drop5)
+#drops.append(drop11)
+#drops.append(drop16)
+#
+#q_values_list = []
+#q_values_list.append(q_values_DLS)
+#q_values_list.append(q_values_DLS)
+#q_values_list.append(q_values_ESRF)
+#q_values_list.append(q_values_ESRF)
+#
+#legend = ['DPPC + POPC, sonicated, Hamilton', 'DPPC+POPC+NaCl, vesicles, DoD', 'DPPC, sonicated, Hamilton', 'POPC, vesicles, Hamilton' ]
+#
+#stacked_scatter_drops(drops, q_values_list, legend)
+#
+
+#maxestwo = []
+#for x in range(len(filter_data)):
+#    hello = (np.where(filter_data[x] == max(filter_data[x][190:300])))
+#    maxestwo.append(q_valuesS[hello[0][0]])#[0][0] gives the actual value rather than an array 
+#
+#
+#fig,ax1 = plt.subplots()
+#ax2 = ax1.twinx()
+#ax1.plot(t_vals[:280], maxesone, label = 'first peak')
+#ax1.plot(t_vals[:280], maxestwo, label = 'second peak')
+#ax1.plot(t_vals[:280], maxesthree, label = 'third peak')
+#ax1.plot(t_vals[:280], maxesfour, label = 'fourth (probs actually fifth) peak')
+#
+#ax2.plot(RH_t+720,RH, c='orange')
+#ax1.set_xlabel('Time (s)')
+#ax1.set_ylabel('q (1/nm)')
+#ax2.set_ylabel('RH (%)', c = 'k')
+#ax1.legend(loc = 'lower right')
+
+#filter_data_summed = [np.sum(filter_data[x]) for x in range(len(filter_data))]
+#filter_data_summed_indices = [x for x in range(len(filter_data_summed)) if filter_data_summed[x]>2600 ]
+#
+#filter_data_new = [filter_data[x] for x in filter_data_summed_indices]
+#times_adj = [t_vals[x] for x in filter_data_summed_indices]
+#
+#max1 =[]
+#max2 = []
+#max3 = []
+#max4 = []
+#max5 = []
+#for x in range(len(filter_data_new)):
+#    val1 = np.where(filter_data_new[x] == max(filter_data_new[x][160:190]))
+#    val2 = np.where(filter_data_new[x] == max(filter_data_new[x][200:300]))
+#    val3 = np.where(filter_data_new[x] == max(filter_data_new[x][300:450]))
+#    val4 = np.where(filter_data_new[x] == max(filter_data_new[x][500:580]))
+#    val5 = np.where(filter_data_new[x] == max(filter_data_new[x][420:]))
+#
+#
+#    max1.append(q_valuesDLS[val1])
+#    max2.append(q_valuesDLS[val2])
+#    max3.append(q_valuesDLS[val3])
+#    max4.append(q_valuesDLS[val4])
+#    max5.append(q_valuesDLS[val5])
+
+
+
+
+def peak_search(data, t_vals, window_size = 5): # I'll mostly be using this in command line, just here for documentation
+    window_size = 5
+    averaged_data = []
+    averaged_time = []
+    i=0
+    peak_positions = []
+
+
+    #taking a rolling average of the data to make it smoother and esaier to work with
+    while i < len(data)-window_size + 1:
+        window = data[i:i+window_size] #putting relevant window elements in temp list
+        t_window = t_vals[i:i+window_size] # doing the same for t vals
+
+        window_average = np.sum(window, axis = 0)/window_size
+        t_average = np.sum(t_window, axis = 0)/window_size
+
+        averaged_data.append(window_average)
+        averaged_time.append(t_average)
+
+        i+=1
+    
+    for x in range(len(averaged_data)):
+        peaks1 = sc.find_peaks(np.log10(averaged_data[x][200:300]), distance = 40, prominence = 0.01, width = [1, 40])
+        try:
+            peak_positions.append(q_valuesDLS[peaks1[0][0]+200])
+        except:
+            peak_positions.append(None)
+
+    plt.plot(peak_positions)
+
+    return None
